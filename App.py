@@ -150,7 +150,7 @@ for k, v in {
 
 # ---------------- UI ----------------
 st.title("🪄 이제 호그와트로!")
-st.caption("너무 졸리다")
+st.caption("Not EXAM4YOU, Joy for U")
 
 st.text_area("지문 입력", key="text", height=180)
 
