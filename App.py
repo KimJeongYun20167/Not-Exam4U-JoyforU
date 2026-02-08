@@ -4,12 +4,12 @@ import streamlit as st
 
 st.set_page_config(page_title="이제 호그와트로!", layout="centered")
 
-# ---------------- 배경 + 모바일 UI CSS ----------------
+# ---------------- 배경 + 가독성 CSS ----------------
 def set_background(image_url: str):
     st.markdown(
         f"""
         <style>
-        /* 전체 배경 */
+        /* 배경 이미지 */
         .stApp {{
             background-image: url("{image_url}");
             background-size: cover;
@@ -17,35 +17,35 @@ def set_background(image_url: str):
             background-attachment: fixed;
         }}
 
-        /* 배경 위 어두운 오버레이(가독성 핵심) */
+        /* 어두운 오버레이(가독성 핵심) */
         .stApp::before {{
             content: "";
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.45);
+            background: rgba(0,0,0,0.70);  /* 더 어둡게 */
             z-index: 0;
         }}
 
-        /* 본문은 overlay 위에 */
+        /* 전체 컨텐츠를 오버레이 위로 */
         .block-container {{
             position: relative;
             z-index: 1;
-            padding-top: 28px;
-            padding-bottom: 28px;
+            padding-top: 20px;
+            padding-bottom: 24px;
+            max-width: 760px;
         }}
 
-        /* 카드(폰에서 예쁘게 보이는 핵심) */
-        .card {{
-            background: rgba(255,255,255,0.92);
+        /* 헤더 카드 */
+        .header-card {{
+            background: #FFFFFF;          /* 완전 불투명 */
             border-radius: 18px;
-            padding: 18px 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-            backdrop-filter: blur(6px);
+            padding: 16px 16px 14px 16px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+            margin-bottom: 12px;
         }}
 
-        /* 타이틀/부제 */
         .title {{
-            font-size: 44px;
+            font-size: 36px;
             font-weight: 900;
             line-height: 1.05;
             margin: 0;
@@ -53,40 +53,56 @@ def set_background(image_url: str):
         }}
         .subtitle {{
             margin-top: 8px;
-            margin-bottom: 14px;
-            color: rgba(0,0,0,0.62);
-            font-size: 16px;
+            color: #555;
+            font-size: 15px;
             font-weight: 600;
         }}
 
-        /* 모바일에서 타이틀 자동 축소 */
-        @media (max-width: 480px) {{
-            .title {{ font-size: 34px; }}
-            .subtitle {{ font-size: 14px; }}
+        /* 입력/본문 카드 */
+        .card {{
+            background: #FFFFFF;          /* 완전 불투명 */
+            border-radius: 18px;
+            padding: 14px 14px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+            margin-top: 10px;
         }}
 
-        /* 텍스트 영역 */
+        /* 지문/문장 표시(텍스트 가독성) */
+        .passage {{
+            color: #111;
+            font-size: 16px;
+            line-height: 1.75;
+            word-break: break-word;
+        }}
+
+        /* Streamlit 기본 alert(삽입문장)도 카드 톤으로 */
+        div[data-testid="stAlert"] {{
+            border-radius: 14px !important;
+        }}
+
+        /* textarea 둥글게 */
         textarea {{
             border-radius: 14px !important;
         }}
 
-        /* 버튼 높이/둥글게 */
-        button[kind="primary"], .stButton>button {{
+        /* 버튼 둥글고 안정감 */
+        .stButton>button {{
             border-radius: 14px !important;
             padding: 10px 12px !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
         }}
 
-        /* info/success 박스도 카드 톤으로 */
-        div[data-testid="stAlert"] {{
-            border-radius: 14px !important;
+        /* 모바일: 타이틀 조금 줄이기 */
+        @media (max-width: 480px) {{
+            .title {{ font-size: 30px; }}
+            .passage {{ font-size: 15px; }}
         }}
         </style>
         """,
         unsafe_allow_html=True
     )
 
-# ✅ 너의 raw 이미지 URL로 바꿔
+# ✅ 너의 raw 이미지 URL
 BG_URL = "https://raw.githubusercontent.com/KimJeongYun20167/Not-Exam4U-JoyforU/main/IMG_5661.jpeg"
 set_background(BG_URL)
 
@@ -135,7 +151,7 @@ def choose_mark_positions(k, correct_pos):
 
     pos = boundaries[:]
     while len(pos) < 5:
-        pos.append(k)  # 맨 뒤로 몰아넣기(짧은 지문 대응)
+        pos.append(k)  # 짧으면 뒤로 몰아넣기
     return pos[:5]
 
 def make_problem(passage_text: str):
@@ -199,18 +215,16 @@ def on_new_passage():
     st.session_state.passage_text = ""
     st.session_state.error_msg = ""
 
-# ---------------- UI (카드 레이아웃) ----------------
+# ---------------- UI ----------------
 st.markdown(
     """
-    <div class="card">
+    <div class="header-card">
       <p class="title">🪄 이제 호그와트로!</p>
       <div class="subtitle">너무 졸리다</div>
     </div>
     """,
     unsafe_allow_html=True
 )
-
-st.write("")  # 여백
 
 if st.session_state.error_msg:
     st.error(st.session_state.error_msg)
@@ -228,10 +242,14 @@ with c2:
 with c3:
     st.button("새 지문", on_click=on_new_passage, use_container_width=True)
 
+st.markdown("</div>", unsafe_allow_html=True)
+
+# 출력은 '완전 흰 카드' 안에 넣어서 배경 영향 0으로 만들기
 if st.session_state.prob is not None:
+    st.markdown('<div class="card">', unsafe_allow_html=True)
     st.info(st.session_state.prob["insert_sentence"])
-    st.write(st.session_state.prob["passage_with_marks"])
+    st.markdown(f'<div class="passage">{st.session_state.prob["passage_with_marks"]}</div>', unsafe_allow_html=True)
+
     if st.session_state.show_answer:
         st.success(st.session_state.prob["answer_plain"])
-
-st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
