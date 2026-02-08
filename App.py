@@ -5,74 +5,105 @@ import streamlit as st
 st.set_page_config(page_title="이제 호그와트로!", layout="centered")
 
 MARKS = ["①", "②", "③", "④", "⑤"]   # 지문 표시
-ANS = ["1", "2", "3", "4", "5"]       # 정답 출력(숫자만)
+ANS = ["1", "2", "3", "4", "5"]       # 정답(숫자만)
 
 def split_sentences(text: str):
-    # MVP 문장 분리: . ? ! 뒤 공백 기준
-    text = re.sub(r"\s+", " ", text.strip())
-    if not text:
+    # 텍스트 변형 최소화: 문장 단위만 "판정" (표시는 원문 그대로 join)
+    # - 문장 끝: . ? !
+    # - 줄바꿈이 있어도 \s로 처리
+    text_stripped = text.strip()
+    if not text_stripped:
         return []
-    sents = re.split(r"(?<=[.!?])\s+", text)
-    return [s.strip() for s in sents if len(s.strip()) >= 2]
+    sents = re.split(r"(?<=[.!?])\s+", text_stripped)
+    return [s for s in sents if len(s.strip()) >= 2]
 
 def pick_random_sentence_index(sentences):
-    # 가능하면 첫/끝 문장 피해서 랜덤
     if len(sentences) >= 5:
         return random.randrange(1, len(sentences) - 1)
     return random.randrange(0, len(sentences))
 
-def render_with_consecutive_marks(remaining, start_pos):
-    # start_pos부터 연속 5개 경계에 ①~⑤를 찍음
-    option_positions = list(range(start_pos, start_pos + 5))
+def render_with_marks(remaining, positions_for_marks):
+    """
+    positions_for_marks: 길이 5 리스트.
+    각 원소는 경계 인덱스 i (i는 0..len(remaining) 가능)
+    - i=0: 맨 앞
+    - i=len(remaining): 맨 뒤
+    (우리는 기본적으로 0은 피하지만, 너무 짧으면 어쩔 수 없이 쓸 수 있게 열어둠)
+    """
+    # 같은 위치에 여러 표식이 있을 수 있으므로: 위치->표식 리스트로 모은다
+    pos2labels = {}
+    for j, pos in enumerate(positions_for_marks):
+        pos2labels.setdefault(pos, []).append(MARKS[j])
+
     out = []
     for i in range(len(remaining) + 1):
-        if i in option_positions:
-            out.append(f"({MARKS[option_positions.index(i)]})")
+        if i in pos2labels:
+            # 같은 위치에 여러 개면 (④)(⑤)처럼 붙여서 출력
+            out.append("".join([f"({lab})" for lab in pos2labels[i]]))
         if i < len(remaining):
             out.append(remaining[i])
-    return " ".join(out), option_positions
+    return " ".join(out)
+
+def choose_mark_positions(k, correct_pos):
+    """
+    k = remaining 문장 수
+    가능한 경계는 1..k (0=맨 앞은 보통 제외)
+    목표: ①~⑤를 항상 순서대로 배치.
+    - k>=5면: 최대한 '연속 5개' 블록을 쓰되 정답 포함
+    - k<5면: 있는 경계에 앞에서부터 배치하고, 남는 건 맨 끝(k)에 붙임
+    """
+    if k <= 0:
+        # 문장 1개도 없으면 어쩔 수 없음: 전부 맨 끝(0)
+        return [0, 0, 0, 0, 0]
+
+    boundaries = list(range(1, k + 1))  # 맨 앞(0) 제외
+
+    # 1) 충분히 길면: 연속 5개 블록
+    if k >= 5:
+        # 가능한 시작: 1..k-4
+        min_start = 1
+        max_start = k - 4
+
+        # 정답이 블록 안에 포함되도록 start 범위를 제한
+        start_low = max(min_start, correct_pos - 4)
+        start_high = min(max_start, correct_pos)
+
+        if start_low <= start_high:
+            start = random.randint(start_low, start_high)
+        else:
+            start = random.randint(min_start, max_start)
+
+        return list(range(start, start + 5))  # 연속 5개
+
+    # 2) k<5면: 있는 경계에 순서대로 배치 + 남는 표식은 맨 끝으로
+    pos = boundaries[:]  # 길이 k
+    while len(pos) < 5:
+        pos.append(k)    # 맨 뒤 경계에 붙이기(⑤를 맨 뒤로 보내는 효과)
+    return pos[:5]
 
 def make_problem(passage_text: str):
     sents = split_sentences(passage_text)
-    if len(sents) < 7:
-       zyg
-        return None, "지문이 너무 짧아. 최소 7문장 이상이면 좋아."
+    if len(sents) < 2:
+        return None, "지문이 너무 짧아(문장 2개 이상 필요)."
 
-    # 삽입 문장 랜덤 선택 후 제거
     idx = pick_random_sentence_index(sents)
-
-    # 첫 문장 뽑히면(정답 위치가 맨 앞이 됨) 다시 뽑기
-    if idx == 0 and len(sents) > 2:
-        idx = random.randrange(1, len(sents) - 1)
-
     insert_sent = sents[idx]
     remaining = sents[:idx] + sents[idx + 1:]
 
-    k = len(remaining)  # 남은 문장 수
-    # 경계는 1..k (0=맨 앞 위치는 제외)
-    correct_pos = idx
+    k = len(remaining)               # 남은 문장 수
+    correct_pos = min(max(idx, 1), k)  # 정답 경계(1..k로 클램프)
 
-    # 연속 5개 표식 블록 생성 가능 조건: k >= 6 (경계가 1..k이고, 그 중 5개 연속 필요)
-    if k < 6:
-        return None, "문장이 너무 적어서 (①~⑤) 연속 표식을 만들기 어려워. 지문을 더 길게 해줘."
+    mark_positions = choose_mark_positions(k, correct_pos)
 
-    min_start = 1
-    max_start = k - 4
-
-    # 정답이 반드시 블록 안에 들어가게 start 범위 제한
-    start_low = max(min_start, correct_pos - 4)
-    start_high = min(max_start, correct_pos)
-
-    start_pos = random.randint(start_low, start_high)
-
-    passage_with_marks, option_positions = render_with_consecutive_marks(remaining, start_pos)
-
-    # 정답 번호(1~5): 블록 안에서 몇 번째인지
-    answer_index = correct_pos - start_pos  # 0..4
+    # 정답 번호: 정답 경계가 mark_positions에서 몇 번째인지(1~5)
+    # 만약 k<5에서 정답 경계가 중복/끝붙임 때문에 여러 번 있을 수 있으니 "첫 등장"을 정답으로
+    answer_index = mark_positions.index(correct_pos)  # 0..4
     answer_plain = ANS[answer_index]
 
+    passage_with_marks = render_with_marks(remaining, mark_positions)
+
     return {
-        "insert_sentence": insert_sent,
+        "insert_sentence": insert_sent.strip(),
         "passage_with_marks": passage_with_marks,
         "answer_plain": answer_plain,
     }, None
@@ -87,9 +118,11 @@ if "show_input" not in st.session_state:
     st.session_state["show_input"] = True
 if "passage_text" not in st.session_state:
     st.session_state["passage_text"] = ""
+if "error_msg" not in st.session_state:
+    st.session_state["error_msg"] = ""
 
 
-# ---------------- 콜백(에러 방지 핵심) ----------------
+# ---------------- 콜백 ----------------
 def on_generate():
     text = st.session_state.get("passage_text", "")
     prob, err = make_problem(text)
@@ -102,8 +135,8 @@ def on_generate():
 
     st.session_state["prob"] = prob
     st.session_state["show_answer"] = False
-    st.session_state["show_input"] = False      # 입력창 숨김(추론 방지)
-    st.session_state["passage_text"] = ""       # 입력값 비움
+    st.session_state["show_input"] = False      # 입력 숨김(추론 방지)
+    st.session_state["passage_text"] = ""       # 입력 비움
     st.session_state["error_msg"] = ""
 
 def on_show_answer():
@@ -122,11 +155,11 @@ def on_new_passage():
 st.title("🪄 이제 호그와트로!")
 st.caption("너무 졸리다")
 
-if st.session_state.get("error_msg"):
+if st.session_state["error_msg"]:
     st.error(st.session_state["error_msg"])
 
 if st.session_state["show_input"]:
-    st.text_area("지문 입력", key="passage_text", height=220, placeholder="여기에 영어 지문을 붙여 넣어줘.")
+    st.text_area("지문 입력", key="passage_text", height=220)
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -136,10 +169,8 @@ with col2:
 with col3:
     st.button("새 지문", on_click=on_new_passage)
 
-# 출력(시험지처럼 문구 최소화)
 if st.session_state["prob"] is not None:
     st.info(st.session_state["prob"]["insert_sentence"])
     st.write(st.session_state["prob"]["passage_with_marks"])
-
     if st.session_state["show_answer"]:
         st.success(st.session_state["prob"]["answer_plain"])
