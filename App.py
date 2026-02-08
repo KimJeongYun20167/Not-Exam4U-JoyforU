@@ -45,7 +45,7 @@ def set_background(image_url: str):
             color: white !important;
         }}
 
-        /* ✅ 입력창: 예전처럼 어두운 톤(흰색 X) */
+        /* 입력창: 어두운 톤 */
         textarea {{
             background: rgba(0,0,0,0.55) !important;
             color: white !important;
@@ -53,14 +53,14 @@ def set_background(image_url: str):
             border: 1px solid rgba(255,255,255,0.35) !important;
         }}
 
-        /* 버튼 기본 */
+        /* 버튼 */
         .stButton > button {{
             border-radius: 10px !important;
             font-weight: 800 !important;
             padding: 10px 12px !important;
         }}
 
-        /* ✅ 슬리데린 초록(문제 생성) */
+        /* 슬리데린 초록 버튼 (문제 생성) */
         button[kind="primary"] {{
             background-color: #1f6f43 !important;
             color: white !important;
@@ -107,7 +107,6 @@ MARKS = ["①", "②", "③", "④", "⑤"]
 ANS = ["1", "2", "3", "4", "5"]
 
 def split_sentences(text: str):
-    # 텍스트는 그대로 두고, 내부적으로만 문장 경계 판정
     t = text.strip()
     if not t:
         return []
@@ -115,16 +114,44 @@ def split_sentences(text: str):
     return [s for s in sents if len(s.strip()) >= 2]
 
 def pick_random_sentence_index(sentences):
-    # 가능하면 첫/끝 피해서 랜덤
     if len(sentences) >= 5:
         return random.randrange(1, len(sentences) - 1)
     return random.randrange(0, len(sentences))
 
+def choose_mark_positions(k, correct_pos):
+    """
+    표식 위치는 '정답 포함 연속 5개 경계' (기존 방식 유지)
+    """
+    if k <= 0:
+        return [0, 0, 0, 0, 0]
+
+    if k >= 5:
+        min_start = 1
+        max_start = k - 4
+        start_low = max(min_start, correct_pos - 4)
+        start_high = min(max_start, correct_pos)
+        start = random.randint(start_low, start_high) if start_low <= start_high else random.randint(min_start, max_start)
+        return list(range(start, start + 5))
+
+    boundaries = list(range(1, k + 1))
+    pos = boundaries[:]
+    while len(pos) < 5:
+        pos.append(k)
+    return pos[:5]
+
 def render_with_marks(remaining, positions_for_marks):
-    # 같은 위치에 여러 표식이면 (④)(⑤)처럼 붙여서 출력
+    """
+    ✅ 핵심: 지문 '뒤에서부터' ⑤,④,③,②,① 붙이기
+    - 가장 뒤(마지막에 가까운) 표식이 (⑤)
+    - 그 앞이 (④) ... 이런 식
+    """
     pos2labels = {}
-    for j, pos in enumerate(positions_for_marks):
-        pos2labels.setdefault(pos, []).append(MARKS[j])
+
+    # positions_for_marks는 보통 오름차순.
+    # 뒤에서부터 순회하면서 ⑤부터 붙인다.
+    for rank_from_end, pos in enumerate(sorted(positions_for_marks, reverse=True)):
+        label = MARKS[4 - rank_from_end]  # 0->⑤, 1->④, 2->③, 3->②, 4->①
+        pos2labels.setdefault(pos, []).append(label)
 
     out = []
     for i in range(len(remaining) + 1):
@@ -132,37 +159,8 @@ def render_with_marks(remaining, positions_for_marks):
             out.append("".join([f"({lab})" for lab in pos2labels[i]]))
         if i < len(remaining):
             out.append(remaining[i])
+
     return " ".join(out)
-
-def choose_mark_positions(k, correct_pos):
-    """
-    출제 표식 위치를 '항상 뒤쪽'으로 고정.
-    - k>=5: 맨 뒤 5개 경계 [k-4, k-3, k-2, k-1, k]
-      (이때 정답(correct_pos)이 이 범위 밖이면, 블록을 정답이 포함되도록 한 칸씩 앞으로 당김)
-    - k<5: 가능한 경계를 채우고, 부족하면 맨 뒤(k)에 붙임
-    """
-    if k <= 0:
-        return [0, 0, 0, 0, 0]
-
-    if k >= 5:
-        start = k - 4  # 기본은 "항상 맨 뒤 5개"
-
-        # ✅ 단, 정답이 블록 밖이면 정답이 들어오도록 블록을 앞으로 당김
-        if correct_pos < start:
-            start = correct_pos  # 정답이 블록의 마지막이 되게(= start..start+4)
-            if start > k - 4:
-                start = k - 4
-            if start < 1:
-                start = 1
-
-        return list(range(start, start + 5))
-
-    # k < 5
-    boundaries = list(range(1, k + 1))
-    pos = boundaries[:]
-    while len(pos) < 5:
-        pos.append(k)
-    return pos[:5]
 
 def make_problem(passage_text: str):
     sents = split_sentences(passage_text)
@@ -170,16 +168,21 @@ def make_problem(passage_text: str):
         return None, "지문이 너무 짧아(문장 2개 이상 필요)."
 
     idx = pick_random_sentence_index(sents)
+
+    # 삽입 문장 1개 뽑고 제거
     insert_sent = sents[idx]
     remaining = sents[:idx] + sents[idx + 1:]
 
     k = len(remaining)
-    correct_pos = min(max(idx, 1), k)  # 1..k로 클램프
+
+    # 정답 경계(1..k)
+    correct_pos = min(max(idx, 1), k)
 
     mark_positions = choose_mark_positions(k, correct_pos)
 
-    answer_index = mark_positions.index(correct_pos)  # 0..4
-    answer_plain = ANS[answer_index]
+    # ✅ 핵심: 표식 번호가 '뒤에서부터 ⑤..①'이므로 정답도 뒤집어서 계산
+    rank_from_start = mark_positions.index(correct_pos)  # 0..4 (앞에서 몇 번째 표식 위치인지)
+    answer_plain = str(5 - rank_from_start)             # 0->5, 1->4, 2->3, 3->2, 4->1
 
     passage_with_marks = render_with_marks(remaining, mark_positions)
 
@@ -189,7 +192,7 @@ def make_problem(passage_text: str):
         "answer_plain": answer_plain,
     }, None
 
-# ---------------- 상태(✅ 예전 기능 복구) ----------------
+# ---------------- 상태(입력 숨김/삭제 기능 유지) ----------------
 if "prob" not in st.session_state:
     st.session_state["prob"] = None
 if "show_answer" not in st.session_state:
@@ -215,8 +218,8 @@ def on_generate():
 
     st.session_state["prob"] = prob
     st.session_state["show_answer"] = False
-    st.session_state["show_input"] = False     # ✅ 입력창 숨김
-    st.session_state["passage_text"] = ""      # ✅ 입력 내용 즉시 삭제
+    st.session_state["show_input"] = False     # 입력창 숨김
+    st.session_state["passage_text"] = ""      # 입력 내용 삭제
     st.session_state["error_msg"] = ""
 
 def on_show_answer():
@@ -226,7 +229,7 @@ def on_show_answer():
 def on_new_passage():
     st.session_state["prob"] = None
     st.session_state["show_answer"] = False
-    st.session_state["show_input"] = True      # ✅ 입력창 다시 보이기
+    st.session_state["show_input"] = True
     st.session_state["passage_text"] = ""
     st.session_state["error_msg"] = ""
 
