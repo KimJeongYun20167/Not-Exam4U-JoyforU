@@ -3,6 +3,8 @@ import random
 import streamlit as st
 
 st.set_page_config(page_title="이제 호그와트로!", layout="centered")
+
+# ---------------- 배경 + 슬리데린 CSS ----------------
 def set_background(image_url: str):
     st.markdown(
         f"""
@@ -30,6 +32,7 @@ def set_background(image_url: str):
             position: relative;
             z-index: 1;
             max-width: 720px;
+            padding-top: 28px;
         }}
 
         /* 제목 */
@@ -41,12 +44,17 @@ def set_background(image_url: str):
             color: white !important;
         }}
 
-        /* textarea */
+        /* ✅ 수정 1) 입력 박스 더 예쁘게(살짝 밝게) */
         textarea {{
-            background: rgba(0,0,0,0.55) !important;
+            background: rgba(255,255,255,0.15) !important;
             color: white !important;
             border-radius: 10px !important;
-            border: 1px solid rgba(255,255,255,0.3) !important;
+            border: 1px solid rgba(255,255,255,0.35) !important;
+        }}
+
+        /* ✅ 수정 2) 버튼 간격 줄이기 */
+        .stButton {{
+            margin-top: 4px;
         }}
 
         /* 기본 버튼 */
@@ -77,7 +85,7 @@ def set_background(image_url: str):
             border-radius: 10px;
         }}
 
-        /* ✅ 모바일에서 제목 한 줄로 */
+        /* ✅ 모바일에서 제목 한 줄로 + 넘치면 … 처리 */
         @media (max-width: 480px) {{
           h1 {{
             font-size: 26px !important;
@@ -103,40 +111,81 @@ set_background(
 MARKS = ["①", "②", "③", "④", "⑤"]
 ANS = ["1", "2", "3", "4", "5"]
 
-def split_sentences(text):
+def split_sentences(text: str):
     sents = re.split(r"(?<=[.!?])\s+", text.strip())
-    return [s for s in sents if s]
+    return [s for s in sents if s.strip()]
 
-def make_problem(text):
+def render_with_marks(remaining, positions_for_marks):
+    """
+    positions_for_marks: 길이 5 리스트, 각 원소는 경계 인덱스 i (0..len(remaining))
+    같은 위치에 표식이 여러 개면 (④)(⑤)처럼 붙여서 출력.
+    """
+    pos2labels = {}
+    for j, pos in enumerate(positions_for_marks):
+        pos2labels.setdefault(pos, []).append(MARKS[j])
+
+    out = []
+    for i in range(len(remaining) + 1):
+        if i in pos2labels:
+            out.append("".join([f"({lab})" for lab in pos2labels[i]]))
+        if i < len(remaining):
+            out.append(remaining[i])
+    return " ".join(out)
+
+def choose_mark_positions(k, correct_pos):
+    """
+    k = remaining 문장 수
+    - k>=5: 정답 포함 '연속 5개 경계' 블록
+    - k<5: 존재하는 경계에 앞에서부터 배치하고, 남는 표식은 맨 뒤(k)에 붙임
+    """
+    if k <= 0:
+        return [0, 0, 0, 0, 0]
+
+    if k >= 5:
+        min_start = 1
+        max_start = k - 4
+        start_low = max(min_start, correct_pos - 4)
+        start_high = min(max_start, correct_pos)
+        start = random.randint(start_low, start_high) if start_low <= start_high else random.randint(min_start, max_start)
+        return list(range(start, start + 5))
+
+    # k < 5
+    boundaries = list(range(1, k + 1))
+    pos = boundaries[:]
+    while len(pos) < 5:
+        pos.append(k)  # 맨 뒤로 몰기
+    return pos[:5]
+
+def pick_random_sentence_index(sentences):
+    # 가능하면 첫/끝 피해서 랜덤
+    if len(sentences) >= 5:
+        return random.randrange(1, len(sentences) - 1)
+    return random.randrange(0, len(sentences))
+
+def make_problem(text: str):
     sents = split_sentences(text)
     if len(sents) < 2:
         return None, "지문이 너무 짧아."
 
-    idx = random.randrange(0, len(sents))
+    idx = pick_random_sentence_index(sents)
     insert_sent = sents[idx]
-    remaining = sents[:idx] + sents[idx+1:]
+    remaining = sents[:idx] + sents[idx + 1:]
 
     k = len(remaining)
     correct_pos = min(max(idx, 1), k)
 
-    positions = list(range(1, k+1))
-    while len(positions) < 5:
-        positions.append(k)
-    positions = positions[:5]
+    mark_positions = choose_mark_positions(k, correct_pos)
 
-    answer = str(positions.index(correct_pos) + 1)
+    # 정답: correct_pos가 mark_positions에서 처음 등장하는 위치(1~5)
+    answer_index = mark_positions.index(correct_pos)
+    answer_plain = ANS[answer_index]
 
-    out = []
-    for i in range(len(remaining)+1):
-        if i in positions:
-            out.append(f"({MARKS[positions.index(i)]})")
-        if i < len(remaining):
-            out.append(remaining[i])
+    passage_with_marks = render_with_marks(remaining, mark_positions)
 
     return {
-        "insert": insert_sent,
-        "passage": " ".join(out),
-        "answer": answer
+        "insert": insert_sent.strip(),
+        "passage": passage_with_marks,
+        "answer": answer_plain
     }, None
 
 # ---------------- 상태 ----------------
@@ -150,7 +199,7 @@ for k, v in {
 
 # ---------------- UI ----------------
 st.title("🪄 이제 호그와트로!")
-st.caption("Not EXAM4YOU, Joy for U")
+st.caption("Not EXAM4YOU. Joy for you")
 
 st.text_area("지문 입력", key="text", height=180)
 
