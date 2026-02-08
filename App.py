@@ -33,38 +33,34 @@ def set_background(image_url: str):
             z-index: 1;
             max-width: 720px;
             padding-top: 28px;
+            padding-bottom: 28px;
         }}
 
-        /* 제목 */
+        /* 글씨 흰색 */
         h1 {{
             color: white;
             font-weight: 900;
         }}
-        h2, h3, p, label, div {{
+        h2, h3, p, label, div, span {{
             color: white !important;
         }}
 
-        /* ✅ 수정 1) 입력 박스 더 예쁘게(살짝 밝게) */
+        /* ✅ 입력창: 예전처럼 어두운 톤(흰색 X) */
         textarea {{
-            background: rgba(255,255,255,0.15) !important;
+            background: rgba(0,0,0,0.55) !important;
             color: white !important;
             border-radius: 10px !important;
             border: 1px solid rgba(255,255,255,0.35) !important;
         }}
 
-        /* ✅ 수정 2) 버튼 간격 줄이기 */
-        .stButton {{
-            margin-top: 4px;
-        }}
-
-        /* 기본 버튼 */
+        /* 버튼 기본 */
         .stButton > button {{
-            border-radius: 10px;
-            font-weight: 800;
-            padding: 10px;
+            border-radius: 10px !important;
+            font-weight: 800 !important;
+            padding: 10px 12px !important;
         }}
 
-        /* 슬리데린 초록 버튼 (문제 생성) */
+        /* ✅ 슬리데린 초록(문제 생성) */
         button[kind="primary"] {{
             background-color: #1f6f43 !important;
             color: white !important;
@@ -78,14 +74,14 @@ def set_background(image_url: str):
             border: 1px solid rgba(255,255,255,0.6) !important;
         }}
 
-        /* info / success 박스도 검정 투명 */
+        /* info/success 박스 */
         div[data-testid="stAlert"] {{
             background: rgba(0,0,0,0.55) !important;
             color: white !important;
-            border-radius: 10px;
+            border-radius: 10px !important;
         }}
 
-        /* ✅ 모바일에서 제목 한 줄로 + 넘치면 … 처리 */
+        /* 모바일: 제목 한 줄 유지(넘치면 …) */
         @media (max-width: 480px) {{
           h1 {{
             font-size: 26px !important;
@@ -102,7 +98,6 @@ def set_background(image_url: str):
         unsafe_allow_html=True
     )
 
-# 🔮 배경 이미지
 set_background(
     "https://raw.githubusercontent.com/KimJeongYun20167/Not-Exam4U-JoyforU/main/IMG_5661.jpeg"
 )
@@ -112,14 +107,21 @@ MARKS = ["①", "②", "③", "④", "⑤"]
 ANS = ["1", "2", "3", "4", "5"]
 
 def split_sentences(text: str):
-    sents = re.split(r"(?<=[.!?])\s+", text.strip())
-    return [s for s in sents if s.strip()]
+    # 텍스트는 그대로 두고, 내부적으로만 문장 경계 판정
+    t = text.strip()
+    if not t:
+        return []
+    sents = re.split(r"(?<=[.!?])\s+", t)
+    return [s for s in sents if len(s.strip()) >= 2]
+
+def pick_random_sentence_index(sentences):
+    # 가능하면 첫/끝 피해서 랜덤
+    if len(sentences) >= 5:
+        return random.randrange(1, len(sentences) - 1)
+    return random.randrange(0, len(sentences))
 
 def render_with_marks(remaining, positions_for_marks):
-    """
-    positions_for_marks: 길이 5 리스트, 각 원소는 경계 인덱스 i (0..len(remaining))
-    같은 위치에 표식이 여러 개면 (④)(⑤)처럼 붙여서 출력.
-    """
+    # 같은 위치에 여러 표식이면 (④)(⑤)처럼 붙여서 출력
     pos2labels = {}
     for j, pos in enumerate(positions_for_marks):
         pos2labels.setdefault(pos, []).append(MARKS[j])
@@ -133,15 +135,12 @@ def render_with_marks(remaining, positions_for_marks):
     return " ".join(out)
 
 def choose_mark_positions(k, correct_pos):
-    """
-    k = remaining 문장 수
-    - k>=5: 정답 포함 '연속 5개 경계' 블록
-    - k<5: 존재하는 경계에 앞에서부터 배치하고, 남는 표식은 맨 뒤(k)에 붙임
-    """
+    # k = remaining 문장 수, 경계는 1..k (맨 앞 0은 기본 제외)
     if k <= 0:
         return [0, 0, 0, 0, 0]
 
     if k >= 5:
+        # 정답 포함 연속 5개 블록
         min_start = 1
         max_start = k - 4
         start_low = max(min_start, correct_pos - 4)
@@ -149,80 +148,99 @@ def choose_mark_positions(k, correct_pos):
         start = random.randint(start_low, start_high) if start_low <= start_high else random.randint(min_start, max_start)
         return list(range(start, start + 5))
 
-    # k < 5
+    # 짧으면: 가능한 경계에 채우고, 남는 표식은 맨 뒤(k)에 붙임
     boundaries = list(range(1, k + 1))
     pos = boundaries[:]
     while len(pos) < 5:
-        pos.append(k)  # 맨 뒤로 몰기
+        pos.append(k)
     return pos[:5]
 
-def pick_random_sentence_index(sentences):
-    # 가능하면 첫/끝 피해서 랜덤
-    if len(sentences) >= 5:
-        return random.randrange(1, len(sentences) - 1)
-    return random.randrange(0, len(sentences))
-
-def make_problem(text: str):
-    sents = split_sentences(text)
+def make_problem(passage_text: str):
+    sents = split_sentences(passage_text)
     if len(sents) < 2:
-        return None, "지문이 너무 짧아."
+        return None, "지문이 너무 짧아(문장 2개 이상 필요)."
 
     idx = pick_random_sentence_index(sents)
     insert_sent = sents[idx]
     remaining = sents[:idx] + sents[idx + 1:]
 
     k = len(remaining)
-    correct_pos = min(max(idx, 1), k)
+    correct_pos = min(max(idx, 1), k)  # 1..k로 클램프
 
     mark_positions = choose_mark_positions(k, correct_pos)
 
-    # 정답: correct_pos가 mark_positions에서 처음 등장하는 위치(1~5)
-    answer_index = mark_positions.index(correct_pos)
+    answer_index = mark_positions.index(correct_pos)  # 0..4
     answer_plain = ANS[answer_index]
 
     passage_with_marks = render_with_marks(remaining, mark_positions)
 
     return {
-        "insert": insert_sent.strip(),
-        "passage": passage_with_marks,
-        "answer": answer_plain
+        "insert_sentence": insert_sent.strip(),
+        "passage_with_marks": passage_with_marks,
+        "answer_plain": answer_plain,
     }, None
 
-# ---------------- 상태 ----------------
-for k, v in {
-    "prob": None,
-    "show_answer": False,
-    "text": ""
-}.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+# ---------------- 상태(✅ 예전 기능 복구) ----------------
+if "prob" not in st.session_state:
+    st.session_state["prob"] = None
+if "show_answer" not in st.session_state:
+    st.session_state["show_answer"] = False
+if "show_input" not in st.session_state:
+    st.session_state["show_input"] = True
+if "passage_text" not in st.session_state:
+    st.session_state["passage_text"] = ""
+if "error_msg" not in st.session_state:
+    st.session_state["error_msg"] = ""
+
+# ---------------- 콜백 ----------------
+def on_generate():
+    text = st.session_state.get("passage_text", "")
+    prob, err = make_problem(text)
+
+    if err:
+        st.session_state["prob"] = None
+        st.session_state["show_answer"] = False
+        st.session_state["show_input"] = True
+        st.session_state["error_msg"] = err
+        return
+
+    st.session_state["prob"] = prob
+    st.session_state["show_answer"] = False
+    st.session_state["show_input"] = False     # ✅ 입력창 숨김
+    st.session_state["passage_text"] = ""      # ✅ 입력 내용 즉시 삭제
+    st.session_state["error_msg"] = ""
+
+def on_show_answer():
+    if st.session_state.get("prob") is not None:
+        st.session_state["show_answer"] = True
+
+def on_new_passage():
+    st.session_state["prob"] = None
+    st.session_state["show_answer"] = False
+    st.session_state["show_input"] = True      # ✅ 입력창 다시 보이기
+    st.session_state["passage_text"] = ""
+    st.session_state["error_msg"] = ""
 
 # ---------------- UI ----------------
 st.title("🪄 이제 호그와트로!")
 st.caption("Not EXAM4YOU. Joy for you")
 
-st.text_area("지문 입력", key="text", height=180)
+if st.session_state["error_msg"]:
+    st.error(st.session_state["error_msg"])
+
+if st.session_state["show_input"]:
+    st.text_area("지문 입력", key="passage_text", height=180)
 
 c1, c2, c3 = st.columns(3)
 with c1:
-    if st.button("문제 생성", type="primary"):
-        p, e = make_problem(st.session_state.text)
-        if e:
-            st.error(e)
-        else:
-            st.session_state.prob = p
-            st.session_state.show_answer = False
+    st.button("문제 생성", type="primary", on_click=on_generate, use_container_width=True)
 with c2:
-    if st.button("정답 보기"):
-        st.session_state.show_answer = True
+    st.button("정답 보기", on_click=on_show_answer, use_container_width=True)
 with c3:
-    if st.button("새 지문"):
-        st.session_state.prob = None
-        st.session_state.text = ""
-        st.session_state.show_answer = False
+    st.button("새 지문", on_click=on_new_passage, use_container_width=True)
 
-if st.session_state.prob:
-    st.info(st.session_state.prob["insert"])
-    st.write(st.session_state.prob["passage"])
-    if st.session_state.show_answer:
-        st.success(st.session_state.prob["answer"])
+if st.session_state["prob"] is not None:
+    st.info(st.session_state["prob"]["insert_sentence"])
+    st.write(st.session_state["prob"]["passage_with_marks"])
+    if st.session_state["show_answer"]:
+        st.success(st.session_state["prob"]["answer_plain"])
