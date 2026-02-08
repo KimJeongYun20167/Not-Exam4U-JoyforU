@@ -135,20 +135,29 @@ def render_with_marks(remaining, positions_for_marks):
     return " ".join(out)
 
 def choose_mark_positions(k, correct_pos):
-    # k = remaining 문장 수, 경계는 1..k (맨 앞 0은 기본 제외)
+    """
+    출제 표식 위치를 '항상 뒤쪽'으로 고정.
+    - k>=5: 맨 뒤 5개 경계 [k-4, k-3, k-2, k-1, k]
+      (이때 정답(correct_pos)이 이 범위 밖이면, 블록을 정답이 포함되도록 한 칸씩 앞으로 당김)
+    - k<5: 가능한 경계를 채우고, 부족하면 맨 뒤(k)에 붙임
+    """
     if k <= 0:
         return [0, 0, 0, 0, 0]
 
     if k >= 5:
-        # 정답 포함 연속 5개 블록
-        min_start = 1
-        max_start = k - 4
-        start_low = max(min_start, correct_pos - 4)
-        start_high = min(max_start, correct_pos)
-        start = random.randint(start_low, start_high) if start_low <= start_high else random.randint(min_start, max_start)
+        start = k - 4  # 기본은 "항상 맨 뒤 5개"
+
+        # ✅ 단, 정답이 블록 밖이면 정답이 들어오도록 블록을 앞으로 당김
+        if correct_pos < start:
+            start = correct_pos  # 정답이 블록의 마지막이 되게(= start..start+4)
+            if start > k - 4:
+                start = k - 4
+            if start < 1:
+                start = 1
+
         return list(range(start, start + 5))
 
-    # 짧으면: 가능한 경계에 채우고, 남는 표식은 맨 뒤(k)에 붙임
+    # k < 5
     boundaries = list(range(1, k + 1))
     pos = boundaries[:]
     while len(pos) < 5:
