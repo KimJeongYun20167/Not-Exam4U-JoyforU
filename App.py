@@ -3,8 +3,6 @@ import random
 import streamlit as st
 
 st.set_page_config(page_title="이제 호그와트로!", layout="centered")
-
-# ---------------- 배경 + 슬리데린 CSS ----------------
 def set_background(image_url: str):
     st.markdown(
         f"""
@@ -78,19 +76,22 @@ def set_background(image_url: str):
             color: white !important;
             border-radius: 10px;
         }}
+
+        /* ✅ 모바일에서 제목 한 줄로 */
+        @media (max-width: 480px) {{
+          h1 {{
+            font-size: 26px !important;
+            line-height: 1.1 !important;
+            margin-bottom: 6px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            max-width: 100% !important;
+          }}
+        }}
         </style>
         """,
         unsafe_allow_html=True
-
-        /* 모바일에서 제목을 한 줄로 만들기 */
-@media (max-width: 480px) {
-  h1 {
-    font-size: 26px !important;
-    line-height: 1.1 !important;
-    margin-bottom: 6px !important;
-    white-space: nowrap;   /* 줄바꿈 금지 */
-  }
-}
     )
 
 # 🔮 배경 이미지
