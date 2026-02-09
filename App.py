@@ -147,8 +147,6 @@ def render_with_marks(remaining, positions_for_marks):
     """
     pos2labels = {}
 
-    # positions_for_marks는 보통 오름차순.
-    # 뒤에서부터 순회하면서 ⑤부터 붙인다.
     for rank_from_end, pos in enumerate(sorted(positions_for_marks, reverse=True)):
         label = MARKS[4 - rank_from_end]  # 0->⑤, 1->④, 2->③, 3->②, 4->①
         pos2labels.setdefault(pos, []).append(label)
@@ -165,11 +163,10 @@ def render_with_marks(remaining, positions_for_marks):
 def make_problem(passage_text: str):
     sents = split_sentences(passage_text)
     if len(sents) < 2:
-        return None, "지문이 너무 짧아(문장 2개 이상 필요)."
+        return None, "지문이 너무 짧아! 다른 지문으로 시도해 봐!🤓"
 
     idx = pick_random_sentence_index(sents)
 
-    # 삽입 문장 1개 뽑고 제거
     insert_sent = sents[idx]
     remaining = sents[:idx] + sents[idx + 1:]
 
@@ -180,7 +177,6 @@ def make_problem(passage_text: str):
 
     mark_positions = choose_mark_positions(k, correct_pos)
 
-    # ✅ 핵심: 표식 번호가 '뒤에서부터 ⑤..①'이므로 정답도 뒤집어서 계산
     rank_from_start = mark_positions.index(correct_pos)  # 0..4 (앞에서 몇 번째 표식 위치인지)
     answer_plain = str(5 - rank_from_start)             # 0->5, 1->4, 2->3, 3->2, 4->1
 
@@ -249,7 +245,7 @@ with c1:
 with c2:
     st.button("정답 보기", on_click=on_show_answer, use_container_width=True)
 with c3:
-    st.button("새 지문", on_click=on_new_passage, use_container_width=True)
+    st.button("새 문제", on_click=on_new_passage, use_container_width=True)
 
 if st.session_state["prob"] is not None:
     st.info(st.session_state["prob"]["insert_sentence"])
